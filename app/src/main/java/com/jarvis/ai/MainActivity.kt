@@ -169,7 +169,8 @@ fun JarvisApp() {
                 val heard = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                 val lower = heard.lowercase(Locale.getDefault())
                 if (lower.contains("jarvis")) {
-                    val command = heard.substringAfter("jarvis", "", ignoreCase = true).trim().trim(',', '.', ':', ';')
+                    val start = lower.indexOf("jarvis") + "jarvis".length
+                    val command = heard.substring(start).trim().trim(',', '.', ':', ';')
                     if (command.isBlank()) {
                         answer = "Te escucho."
                         speak("Te escucho.")
