@@ -1,20 +1,31 @@
 package com.jarvis.ai
 
+import android.Manifest
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
 import android.net.Uri
 import android.provider.CalendarContract
 import android.provider.Settings
 import org.json.JSONArray
+import java.util.Locale
 
 object JarvisActions {
     private const val PREFS = "jarvis_memory"
     private const val KEY = "items"
+    private const val LOCATION_REQUEST_CODE = 9010
 
     fun execute(context: Context, prompt: String): String? {
         val text = prompt.trim()
         val lower = text.lowercase()
+
+        if (isLocationQuestion(lower)) return currentLocation(context)
+
         val memoryPrefix = when {
             lower.startsWith("recuerda que ") -> "recuerda que "
             lower.startsWith("acuérdate de ") -> "acuérdate de "
@@ -66,6 +77,68 @@ object JarvisActions {
         }
         if (lower.contains("controla mi casa") || lower.contains("casa inteligente")) return launchApp(context, "com.amazon.dee.app", "Alexa")
         return null
+    }
+
+    private fun isLocationQuestion(lower: String): Boolean {
+        return lower.contains("dónde estoy") || lower.contains("donde estoy") ||
+            lower.contains("mi ubicación") || lower.contains("mi ubicacion") ||
+            lower.contains("ubicación actual") || lower.contains("ubicacion actual") ||
+            lower.contains("en qué ciudad estoy") || lower.contains("en que ciudad estoy") ||
+            lower.contains("qué ciudad es") || lower.contains("que ciudad es")
+    }
+
+    private fun currentLocation(context: Context): String {
+        val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fine && !coarse) {
+            if (context is Activity) {
+                context.requestPermissions(
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    LOCATION_REQUEST_CODE
+                )
+            }
+            return "Necesito permiso para acceder a tu ubicación. Cuando aparezca el aviso, pulsa Permitir y vuelve a preguntarme dónde estás."
+        }
+
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val location = bestLastKnownLocation(manager, fine, coarse)
+            ?: return "No he podido obtener tu ubicación todavía. Comprueba que la ubicación del teléfono está activada y vuelve a intentarlo."
+
+        val place = reverseGeocode(context, location)
+        val coordinates = String.format(Locale.US, "%.5f, %.5f", location.latitude, location.longitude)
+        return if (place != null) {
+            "Ahora mismo estás en $place. Coordenadas: $coordinates."
+        } else {
+            "He localizado tu teléfono. Tus coordenadas son $coordinates."
+        }
+    }
+
+    private fun bestLastKnownLocation(manager: LocationManager, fine: Boolean, coarse: Boolean): Location? {
+        val providers = manager.getProviders(true)
+        var best: Location? = null
+        for (provider in providers) {
+            val allowed = provider != LocationManager.GPS_PROVIDER || fine || coarse
+            if (!allowed) continue
+            val candidate = runCatching { manager.getLastKnownLocation(provider) }.getOrNull() ?: continue
+            if (best == null || candidate.time > best.time || candidate.accuracy < best.accuracy) best = candidate
+        }
+        return best
+    }
+
+    @Suppress("DEPRECATION")
+    private fun reverseGeocode(context: Context, location: Location): String? {
+        return runCatching {
+            if (!Geocoder.isPresent()) return null
+            val addresses = Geocoder(context, Locale("es", "ES")).getFromLocation(location.latitude, location.longitude, 1)
+            val address = addresses?.firstOrNull() ?: return null
+            val parts = listOfNotNull(
+                address.locality,
+                address.subAdminArea?.takeIf { it != address.locality },
+                address.adminArea?.takeIf { it != address.locality && it != address.subAdminArea },
+                address.countryName
+            ).distinct()
+            if (parts.isEmpty()) null else parts.joinToString(", ")
+        }.getOrNull()
     }
 
     private fun saveMemory(context: Context, value: String) {
