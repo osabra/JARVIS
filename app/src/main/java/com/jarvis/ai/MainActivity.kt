@@ -90,9 +90,7 @@ fun JarvisApp() {
         onDispose { recognizer?.destroy(); handler.removeCallbacksAndMessages(null) }
     }
 
-    fun speak(text: String) {
-        tts.speak(text.take(2500), TextToSpeech.QUEUE_FLUSH, null, "jarvis")
-    }
+    fun speak(text: String) { tts.speak(text.take(2500), TextToSpeech.QUEUE_FLUSH, null, "jarvis") }
 
     fun startRecognition() {
         recognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -123,7 +121,7 @@ fun JarvisApp() {
         thinking = true
         answer = "Estoy pensando…"
         scope.launch {
-            val result = withContext(Dispatchers.IO) { callGemini(apiKey, history.toList(), context) }
+            val result = withContext(Dispatchers.IO) { callGemini(apiKey, history.toList()) }
             thinking = false
             result.onSuccess { text ->
                 history.add(ChatMessage("model", text))
@@ -141,9 +139,11 @@ fun JarvisApp() {
         if (granted) {
             listening = true
             startRecognition()
-        } else {
-            answer = "Necesito permiso para usar el micrófono."
-        }
+        } else answer = "Necesito permiso para usar el micrófono."
+    }
+
+    val wakePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) wakeMode = true else answer = "Necesito permiso de micrófono para activar el modo JARVIS."
     }
 
     LaunchedEffect(wakeMode) {
@@ -173,9 +173,7 @@ fun JarvisApp() {
                     if (command.isBlank()) {
                         answer = "Te escucho."
                         speak("Te escucho.")
-                    } else {
-                        askJarvis(command)
-                    }
+                    } else askJarvis(command)
                 }
                 if (wakeMode) handler.postDelayed({ if (wakeMode) startRecognition() }, 500)
             }
@@ -193,18 +191,16 @@ fun JarvisApp() {
                 }
                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, "Configuración", tint = Color.Gray) }
             }
-
             Spacer(Modifier.height(20.dp))
             val transition = rememberInfiniteTransition(label = "jarvisPulse")
             val pulse by transition.animateFloat(1f, 1.08f, infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "pulse")
             Box(Modifier.size(190.dp).scale(if (thinking || listening || wakeMode) pulse else 1f).shadow(28.dp, CircleShape).background(Panel, CircleShape), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(146.dp).background(Color(0xFF0E1C27), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(when { listening -> "●"; thinking -> "…"; wakeMode -> "J"; else -> "J" }, color = Accent, fontSize = 58.sp, fontWeight = FontWeight.Bold)
+                    Text(if (listening) "●" else if (thinking) "…" else "J", color = Accent, fontSize = 58.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(15.dp))
             Text(when { listening -> "ESCUCHANDO…"; thinking -> "PENSANDO…"; wakeMode -> "JARVIS EN ESPERA"; else -> "JARVIS ONLINE" }, color = Accent, fontSize = 13.sp, letterSpacing = 2.sp)
-
             Spacer(Modifier.height(18.dp))
             Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Panel) {
                 Column(Modifier.padding(16.dp)) {
@@ -216,7 +212,6 @@ fun JarvisApp() {
                     }
                 }
             }
-
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f), placeholder = { Text("Habla con JARVIS…", color = Color.Gray) }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Accent, unfocusedBorderColor = Color(0xFF25313C), focusedTextColor = TextMain, unfocusedTextColor = TextMain), shape = RoundedCornerShape(18.dp), singleLine = true)
@@ -228,15 +223,12 @@ fun JarvisApp() {
                 Button(onClick = { micPermission.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.weight(1f).height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF101A23)), shape = RoundedCornerShape(18.dp)) {
                     Icon(Icons.Default.Mic, "Micrófono", tint = Accent); Spacer(Modifier.width(8.dp)); Text("HABLAR", color = Accent, fontWeight = FontWeight.Bold)
                 }
-                Button(onClick = {
-                    if (wakeMode) wakeMode = false else micPermission.launch(Manifest.permission.RECORD_AUDIO)
-                    if (!wakeMode) wakeMode = true
-                }, modifier = Modifier.weight(1f).height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = if (wakeMode) Accent else Color(0xFF101A23)), shape = RoundedCornerShape(18.dp)) {
+                Button(onClick = { if (wakeMode) wakeMode = false else wakePermission.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.weight(1f).height(54.dp), colors = ButtonDefaults.buttonColors(containerColor = if (wakeMode) Accent else Color(0xFF101A23)), shape = RoundedCornerShape(18.dp)) {
                     Text(if (wakeMode) "JARVIS ACTIVO" else "DECIR JARVIS", color = if (wakeMode) Color.Black else Accent, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(5.dp))
-            Text("Puedes decir: «Jarvis, abre WhatsApp», «Jarvis, busca…», «Jarvis, recuérdame…»", color = Color(0xFF71818D), fontSize = 10.sp)
+            Text("Puedes decir: «Jarvis, abre WhatsApp», «Jarvis, busca…», «Jarvis, recuerda que…»", color = Color(0xFF71818D), fontSize = 10.sp)
         }
         if (showSettings) SettingsDialog(apiKey, wakeMode, { showSettings = false }, { newKey -> apiKey = newKey.trim(); context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(API_KEY, apiKey).apply(); showSettings = false })
     }
@@ -263,16 +255,12 @@ private fun SettingsDialog(initialKey: String, wakeMode: Boolean, onDismiss: () 
     }
 }
 
-private fun callGemini(apiKey: String, messages: List<ChatMessage>, context: Context): Result<String> = runCatching {
+private fun callGemini(apiKey: String, messages: List<ChatMessage>): Result<String> = runCatching {
     val contents = JSONArray()
-    messages.takeLast(20).forEach { m ->
-        contents.put(JSONObject().put("role", if (m.role == "model") "model" else "user").put("parts", JSONArray().put(JSONObject().put("text", m.text))))
-    }
-    val memoryHint = "Usa los recuerdos locales solo cuando sean relevantes. El asistente se llama JARVIS."
+    messages.takeLast(20).forEach { m -> contents.put(JSONObject().put("role", if (m.role == "model") "model" else "user").put("parts", JSONArray().put(JSONObject().put("text", m.text)))) }
     val body = JSONObject()
-        .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "Eres JARVIS, un asistente personal en español. $memoryHint Responde de forma natural, útil y concisa. Si el usuario pide una acción en el teléfono, intenta explicar que JARVIS puede ejecutarla mediante comandos compatibles."))))
+        .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "Eres JARVIS, un asistente personal en español. Responde de forma natural, útil y concisa. Puedes trabajar junto a acciones locales del teléfono."))))
         .put("contents", contents)
-
     var lastError = "Error desconocido"
     for (attempt in 0..3) {
         val connection = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent").openConnection() as HttpURLConnection).apply {
