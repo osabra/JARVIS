@@ -136,17 +136,49 @@ private fun SettingsDialog(initialKey: String, onDismiss: () -> Unit, onSave: (S
 }
 
 private fun callGemini(apiKey: String, messages: List<ChatMessage>): Result<String> = runCatching {
-    val connection = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent").openConnection() as HttpURLConnection).apply {
-        requestMethod = "POST"; connectTimeout = 20_000; readTimeout = 60_000; doOutput = true
-        setRequestProperty("Content-Type", "application/json"); setRequestProperty("x-goog-api-key", apiKey)
-    }
     val contents = JSONArray()
-    messages.takeLast(20).forEach { m -> contents.put(JSONObject().put("role", if (m.role == "model") "model" else "user").put("parts", JSONArray().put(JSONObject().put("text", m.text)))) }
-    val body = JSONObject().put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "Tu nombre es JARVIS. Eres un asistente personal en español, claro, útil y natural. Responde de forma concisa salvo que el usuario pida más detalle.")))).put("contents", contents)
-    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-    val code = connection.responseCode; val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-    val response = stream.bufferedReader().use { it.readText() }; connection.disconnect()
-    if (code !in 200..299) throw IllegalStateException("HTTP $code")
-    val text = JSONObject(response).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).optString("text")
-    if (text.isBlank()) throw IllegalStateException("Respuesta vacía"); text
+    messages.takeLast(20).forEach { m ->
+        contents.put(JSONObject().put("role", if (m.role == "model") "model" else "user")
+            .put("parts", JSONArray().put(JSONObject().put("text", m.text))))
+    }
+    val body = JSONObject()
+        .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "Tu nombre es JARVIS. Eres un asistente personal en español, claro, útil y natural. Responde de forma concisa salvo que el usuario pida más detalle."))))
+        .put("contents", contents)
+
+    var lastError = "Error desconocido"
+    for (attempt in 0..2) {
+        val connection = (URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 20_000
+            readTimeout = 60_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("x-goog-api-key", apiKey)
+        }
+        try {
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+            if (code in 200..299) {
+                val text = JSONObject(response).getJSONArray("candidates").getJSONObject(0)
+                    .getJSONObject("content").getJSONArray("parts").getJSONObject(0).optString("text")
+                if (text.isBlank()) throw IllegalStateException("Respuesta vacía")
+                return@runCatching text
+            }
+
+            lastError = "HTTP $code"
+            if (response.isNotBlank()) {
+                val detail = runCatching { JSONObject(response).optJSONObject("error")?.optString("message") }.getOrNull()
+                if (!detail.isNullOrBlank()) lastError = "HTTP $code: $detail"
+            }
+
+            if (code !in listOf(429, 500, 502, 503, 504) || attempt == 2) break
+            Thread.sleep(1500L * (1L shl attempt))
+        } finally {
+            connection.disconnect()
+        }
+    }
+    throw IllegalStateException(lastError)
 }
