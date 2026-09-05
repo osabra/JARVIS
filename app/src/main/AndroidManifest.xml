@@ -3,14 +3,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.TTS_SERVICE" />
-        </intent>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
         <package android:name="com.amazon.dee.app" />
         <package android:name="com.whatsapp" />
         <package android:name="com.google.android.youtube" />
@@ -32,5 +31,6 @@
                 <data android:scheme="jarvis" android:host="assistant" />
             </intent-filter>
         </activity>
+        <service android:name=".JarvisWakeService" android:exported="false" android:foregroundServiceType="microphone" />
     </application>
 </manifest>
