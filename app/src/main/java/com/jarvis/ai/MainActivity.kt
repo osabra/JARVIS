@@ -40,7 +40,7 @@ import java.util.Locale
 
 private const val PREFS = "jarvis_settings"
 private const val API_KEY = "gemini_api_key"
-private const val MODEL = "gemini-2.5-flash"
+private const val MODEL = "gemini-3.8-flash"
 private val Bg = Color(0xFF05070B)
 private val Panel = Color(0xFF0B1018)
 private val Accent = Color(0xFF55D6FF)
