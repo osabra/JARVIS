@@ -1,0 +1,2 @@
+JARVIS 3D hologram build marker
+Build this commit to package the current MainActivity + HolographicCore3D implementation.
