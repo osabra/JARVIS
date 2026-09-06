@@ -21,61 +21,78 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-private val Cyan = Color(0xFF55E9FF)
-private val CyanDim = Color(0xFF1689AD)
-private val CyanDeep = Color(0xFF063746)
+private val C = Color(0xFF5DEBFF)
+private val C2 = Color(0xFF1598C0)
+private val Deep = Color(0xFF031821)
 
 @Composable
 fun HolographicCore3D(status: String, pulse: Float, angle: Float, reverseAngle: Float, wave: Float) {
-    val active = status == "HEARING" || status == "LISTENING" || status == "THINKING"
-    val power = if (active) 1f else 0.78f
+    val active = status != "ONLINE"
+    val glow = if (active) 1f else .82f
     Box(Modifier.size(290.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val c = center
-            val r = size.minDimension * 0.30f
-            val outer = r * 1.70f
-            val spin = angle * 0.017453292f
-            val reverse = reverseAngle * 0.017453292f
-            drawCircle(Brush.radialGradient(listOf(Cyan.copy(alpha = 0.30f * power), CyanDeep.copy(alpha = 0.18f), Color.Transparent)), outer * 1.12f, c)
-            val rings = floatArrayOf(0f, 0.72f, -0.72f)
-            rings.forEachIndexed { index, tilt ->
-                val dynamic = (0.30f + 0.68f * abs(sin(spin + tilt).toFloat()))
-                val rx = outer * (0.86f + index * 0.08f)
-                val ry = rx * dynamic
-                drawOval(Cyan.copy(alpha = (0.42f + index * 0.12f) * power), topLeft = Offset(c.x - rx, c.y - ry), size = androidx.compose.ui.geometry.Size(rx * 2f, ry * 2f), style = Stroke(if (index == 1) 2.2f else 1.25f))
+            val cx = center.x
+            val cy = center.y
+            val radius = size.minDimension * .285f
+            val orbit = radius * 1.65f
+            val a = angle * .017453292f
+            val b = reverseAngle * .017453292f
+
+            drawCircle(Brush.radialGradient(listOf(C.copy(alpha=.34f*glow), C2.copy(alpha=.12f), Color.Transparent)), orbit*1.15f, Offset(cx,cy))
+
+            // Three tilted orbital rings create obvious perspective and depth.
+            for (i in 0..2) {
+                val phase = a + i * 2.0943952f
+                val yScale = .18f + .70f * abs(sin(phase).toFloat())
+                val w = orbit * (1.05f + i*.08f)
+                val h = w * yScale
+                drawOval(C.copy(alpha=(.45f+i*.12f)*glow), topLeft=Offset(cx-w,cy-h), size=androidx.compose.ui.geometry.Size(w*2f,h*2f), style=Stroke(if(i==1)2.4f else 1.25f))
             }
-            drawCircle(Brush.radialGradient(listOf(Cyan.copy(alpha = 0.22f), CyanDeep.copy(alpha = 0.30f), Color.Transparent)), r * 1.10f, c)
-            for (lat in -4..4) {
-                val y = lat / 4f
-                val latY = r * y * 0.92f
-                val latRx = r * sqrt(maxOf(0f, 1f - y * y))
-                drawOval(Cyan.copy(alpha = (0.22f + 0.08f * (4 - abs(lat))) * power), topLeft = Offset(c.x - latRx, c.y - latY), size = androidx.compose.ui.geometry.Size(latRx * 2f, maxOf(1.5f, r * 0.11f)), style = Stroke(0.9f))
+
+            // Spherical grid: latitude and longitude lines move continuously.
+            drawCircle(C.copy(alpha=.16f*glow), radius*1.08f, Offset(cx,cy), style=Stroke(1.1f))
+            for (lat in -5..5) {
+                val y = lat/5f
+                val yy = cy + radius*y*.94f
+                val rr = radius*sqrt(maxOf(0f,1f-y*y))
+                val thickness = if(lat==0) 1.5f else .8f
+                drawOval(C.copy(alpha=(.22f+.05f*(5-abs(lat)))*glow), topLeft=Offset(cx-rr,yy-radius*.055f), size=androidx.compose.ui.geometry.Size(rr*2f,radius*.11f), style=Stroke(thickness))
             }
-            for (lon in 0 until 12) {
-                val phase = reverse + lon * 0.5235988f
-                val xRadius = r * abs(cos(phase).toFloat())
-                drawOval(Cyan.copy(alpha = 0.32f * power), topLeft = Offset(c.x - xRadius, c.y - r), size = androidx.compose.ui.geometry.Size(xRadius * 2f, r * 2f), style = Stroke(if (lon % 3 == 0) 1.2f else 0.7f))
+            for (lon in 0 until 16) {
+                val p = b + lon*.39269908f
+                val x = radius*abs(cos(p).toFloat())
+                drawOval(C.copy(alpha=(.20f+.18f*(lon%4==0).compareTo(false))*glow), topLeft=Offset(cx-x,cy-radius), size=androidx.compose.ui.geometry.Size(x*2f,radius*2f), style=Stroke(if(lon%4==0)1.25f else .7f))
             }
-            val pulseRadius = r * (0.30f + wave * 0.18f) * pulse
-            drawCircle(Brush.radialGradient(listOf(Color.White, Cyan.copy(alpha = 0.95f), CyanDim.copy(alpha = 0.50f), Color.Transparent)), pulseRadius, c)
-            for (i in 0 until 18) {
-                val a = spin * 2.6f + i * 0.34906584f
-                val inner = r * 0.48f
-                val outerP = r * (0.88f + 0.14f * sin(wave * 6.2831855f + i * 0.45f).toFloat())
-                drawLine(Cyan.copy(alpha = 0.25f + 0.55f * power), Offset(c.x + inner * cos(a).toFloat(), c.y + inner * sin(a).toFloat()), Offset(c.x + outerP * cos(a).toFloat(), c.y + outerP * sin(a).toFloat()), if (i % 3 == 0) 2f else 1f)
+
+            // Bright rotating energy core.
+            val core = radius*(.38f + .16f*wave)*pulse
+            drawCircle(Brush.radialGradient(listOf(Color.White,C.copy(alpha=.95f),C2.copy(alpha=.55f),Color.Transparent)),core,Offset(cx,cy))
+            for(i in 0 until 24) {
+                val p = a*2.2f + i*.2617994f
+                val r1 = radius*.42f
+                val r2 = radius*(.72f + .18f*sin(wave*6.2831855f+i*.7f))
+                drawLine(C.copy(alpha=.35f+.45f*glow), Offset(cx+r1*cos(p),cy+r1*sin(p)), Offset(cx+r2*cos(p),cy+r2*sin(p)), if(i%4==0)2f else 1f)
             }
-            for (i in 0 until 36) {
-                val a = spin * 1.7f + i * 0.541878f
-                val depth = 0.52f + ((i * 17) % 45) / 100f
-                drawCircle(Cyan.copy(alpha = 0.22f + 0.52f * power), if (i % 8 == 0) 2.7f else 1.2f, Offset(c.x + outer * depth * cos(a).toFloat(), c.y + outer * 0.62f * depth * sin(a).toFloat()))
+
+            // Floating particles orbiting at different depths.
+            for(i in 0 until 48) {
+                val p = a*1.4f + i*.1308997f
+                val depth = .55f + ((i*37)%45)/100f
+                val px = cx + orbit*depth*cos(p)
+                val py = cy + orbit*.62f*depth*sin(p)
+                val pr = if(i%9==0)2.8f else 1.15f
+                drawCircle(C.copy(alpha=(.25f+.55f*glow)*(.55f+.45f*depth)),pr,Offset(px,py))
             }
-            val scanY = c.y + sin(wave * 6.2831855f).toFloat() * r * 0.86f
-            drawLine(Cyan.copy(alpha = 0.30f * power), Offset(c.x - outer, scanY), Offset(c.x + outer, scanY), 1f)
-            drawOval(Cyan.copy(alpha = 0.48f * power), topLeft = Offset(c.x - outer * 0.72f, c.y + r * 0.84f), size = androidx.compose.ui.geometry.Size(outer * 1.44f, r * 0.22f), style = Stroke(1.2f))
+
+            // Scanning beam and base projection make the hologram read as volumetric.
+            val scan = cy + sin(wave*6.2831855f)*radius*.9f
+            drawLine(C.copy(alpha=.38f*glow),Offset(cx-orbit,scan),Offset(cx+orbit,scan),1.2f)
+            drawOval(C.copy(alpha=.55f*glow),topLeft=Offset(cx-orbit*.78f,cy+radius*.90f),size=androidx.compose.ui.geometry.Size(orbit*1.56f,radius*.25f),style=Stroke(1.5f))
+            drawOval(C.copy(alpha=.25f*glow),topLeft=Offset(cx-orbit*.52f,cy+radius*1.02f),size=androidx.compose.ui.geometry.Size(orbit*1.04f,radius*.14f),style=Stroke(1f))
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("J", color = Cyan, fontSize = 48.sp, fontWeight = FontWeight.Black)
-            Text(if (status == "HEARING" || status == "LISTENING") "LISTENING" else if (status == "THINKING") "PROCESSING" else "ONLINE", color = Cyan, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Column(horizontalAlignment=Alignment.CenterHorizontally) {
+            Text("J", color=C, fontSize=46.sp, fontWeight=FontWeight.Black)
+            Text(if(status=="THINKING")"PROCESSING" else if(status=="LISTENING"||status=="HEARING")"LISTENING" else "ONLINE", color=C, fontSize=7.sp, fontWeight=FontWeight.Bold, letterSpacing=2.sp)
         }
     }
 }
