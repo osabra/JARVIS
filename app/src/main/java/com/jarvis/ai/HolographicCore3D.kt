@@ -26,6 +26,9 @@ private val Cyan = Color(0xFF55E9FF)
 private val CyanDim = Color(0xFF1689AD)
 private val CyanDeep = Color(0xFF063746)
 
+private fun point(x: Float, y: Float): Offset = Offset.Zero.copy(x = x, y = y)
+private fun rectSize(width: Float, height: Float): Size = Size.Zero.copy(width = width, height = height)
+
 @Composable
 fun HolographicCore3D(
     status: String,
@@ -45,21 +48,12 @@ fun HolographicCore3D(
             val spin = Math.toRadians(angle.toDouble())
             val reverse = Math.toRadians(reverseAngle.toDouble())
 
-            // Holographic aura.
             drawCircle(
                 Brush.radialGradient(
-                    listOf(
-                        Cyan.copy(alpha = 0.30f * power),
-                        CyanDeep.copy(alpha = 0.18f),
-                        Color.Transparent
-                    )
-                ),
-                outer * 1.12f,
-                c
+                    listOf(Cyan.copy(alpha = 0.30f * power), CyanDeep.copy(alpha = 0.18f), Color.Transparent)
+                ), outer * 1.12f, c
             )
 
-            // Three tilted orbital rings. Their apparent tilt changes continuously,
-            // creating a 3D illusion without relying on graphicsLayer APIs.
             val rings = floatArrayOf(0f, 0.72f, -0.72f)
             rings.forEachIndexed { index, tilt ->
                 val dynamic = 0.30f + 0.68f * abs(sin(spin + tilt))
@@ -67,19 +61,16 @@ fun HolographicCore3D(
                 val ry = rx * dynamic
                 drawOval(
                     color = Cyan.copy(alpha = (0.42f + index * 0.12f) * power),
-                    topLeft = Offset(c.x - rx, c.y - ry),
-                    size = Size(rx * 2f, ry * 2f),
+                    topLeft = point(c.x - rx, c.y - ry),
+                    size = rectSize(rx * 2f, ry * 2f),
                     style = Stroke(if (index == 1) 2.2f else 1.25f)
                 )
             }
 
-            // Core sphere with longitude/latitude grid.
             drawCircle(
                 Brush.radialGradient(
                     listOf(Cyan.copy(alpha = 0.22f), CyanDeep.copy(alpha = 0.30f), Color.Transparent)
-                ),
-                r * 1.10f,
-                c
+                ), r * 1.10f, c
             )
 
             for (lat in -4..4) {
@@ -88,8 +79,8 @@ fun HolographicCore3D(
                 val latRx = r * sqrt(maxOf(0f, 1f - y * y))
                 drawOval(
                     color = Cyan.copy(alpha = (0.22f + 0.08f * (4 - abs(lat))) * power),
-                    topLeft = Offset(c.x - latRx, c.y - latY),
-                    size = Size(latRx * 2f, maxOf(1.5f, r * 0.11f)),
+                    topLeft = point(c.x - latRx, c.y - latY),
+                    size = rectSize(latRx * 2f, maxOf(1.5f, r * 0.11f)),
                     style = Stroke(0.9f)
                 )
             }
@@ -99,49 +90,43 @@ fun HolographicCore3D(
                 val xRadius = r * abs(cos(phase)).toFloat()
                 drawOval(
                     color = Cyan.copy(alpha = 0.32f * power),
-                    topLeft = Offset(c.x - xRadius, c.y - r),
-                    size = Size(xRadius * 2f, r * 2f),
+                    topLeft = point(c.x - xRadius, c.y - r),
+                    size = rectSize(xRadius * 2f, r * 2f),
                     style = Stroke(if (lon % 3 == 0) 1.2f else 0.7f)
                 )
             }
 
-            // Pulsing energy nucleus.
             val pulseRadius = r * (0.30f + wave * 0.18f) * pulse
             drawCircle(
                 Brush.radialGradient(
                     listOf(Color.White, Cyan.copy(alpha = 0.95f), CyanDim.copy(alpha = 0.50f), Color.Transparent)
-                ),
-                pulseRadius,
-                c
+                ), pulseRadius, c
             )
 
-            // Rotating energy blades.
             for (i in 0 until 18) {
                 val a = spin * 2.6 + Math.toRadians(i * 20.0)
                 val inner = r * 0.48f
                 val outerP = r * (0.88f + 0.14f * sin(wave * Math.PI * 2 + i * 0.45).toFloat())
-                val p1 = Offset(c.x + inner * cos(a).toFloat(), c.y + inner * sin(a).toFloat())
-                val p2 = Offset(c.x + outerP * cos(a).toFloat(), c.y + outerP * sin(a).toFloat())
+                val p1 = point(c.x + inner * cos(a).toFloat(), c.y + inner * sin(a).toFloat())
+                val p2 = point(c.x + outerP * cos(a).toFloat(), c.y + outerP * sin(a).toFloat())
                 drawLine(Cyan.copy(alpha = 0.25f + 0.55f * power), p1, p2, if (i % 3 == 0) 2f else 1f)
             }
 
-            // Floating particles and scan beam.
             for (i in 0 until 36) {
                 val a = spin * 1.7 + Math.toRadians(i * 31.0)
                 val depth = 0.52f + ((i * 17) % 45) / 100f
                 val px = c.x + outer * depth * cos(a).toFloat()
                 val py = c.y + outer * 0.62f * depth * sin(a).toFloat()
-                drawCircle(Cyan.copy(alpha = 0.22f + 0.52f * power), if (i % 8 == 0) 2.7f else 1.2f, Offset(px, py))
+                drawCircle(Cyan.copy(alpha = 0.22f + 0.52f * power), if (i % 8 == 0) 2.7f else 1.2f, point(px, py))
             }
 
             val scanY = c.y + sin(wave * Math.PI * 2).toFloat() * r * 0.86f
-            drawLine(Cyan.copy(alpha = 0.30f * power), Offset(c.x - outer, scanY), Offset(c.x + outer, scanY), 1f)
+            drawLine(Cyan.copy(alpha = 0.30f * power), point(c.x - outer, scanY), point(c.x + outer, scanY), 1f)
 
-            // Base hologram projector ring.
             drawOval(
                 color = Cyan.copy(alpha = 0.48f * power),
-                topLeft = Offset(c.x - outer * 0.72f, c.y + r * 0.84f),
-                size = Size(outer * 1.44f, r * 0.22f),
+                topLeft = point(c.x - outer * 0.72f, c.y + r * 0.84f),
+                size = rectSize(outer * 1.44f, r * 0.22f),
                 style = Stroke(1.2f)
             )
         }
