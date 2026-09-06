@@ -26,22 +26,16 @@ jobs:
 
       - name: Instalar Android SDK
         run: |
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools"
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
-
-      - name: Aplicar interfaz futurista
-        run: python3 tools/apply_futuristic_ui.py
 
       - name: Aplicar núcleo holográfico 3D
         run: python3 tools/apply_3d_hologram.py
 
       - name: Dar permisos a Gradle
         run: chmod +x ./gradlew
-
-      - name: Corregir scope Compose del HUD
-        run: |
-          sed -i 's/private fun HudMetric(/private fun androidx.compose.foundation.layout.RowScope.HudMetric(/' app/src/main/java/com/jarvis/ai/MainActivity.kt
 
       - name: Compilar JARVIS
         run: ./gradlew assembleDebug
