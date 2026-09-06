@@ -6,83 +6,189 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import java.util.Locale
 
+/**
+ * JARVIS voice trigger service.
+ *
+ * This is a fresh implementation for the JARVIS project; it does not rely on
+ * any private/internal assistant code. Android's SpeechRecognizer is used as
+ * the microphone front-end while the app is running as a foreground service.
+ */
 class JarvisWakeService : Service() {
+    private val handler by lazy { Handler(mainLooper) }
     private var recognizer: SpeechRecognizer? = null
-    private var restarting = false
+    private var listening = false
+    private var stopping = false
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
-        startForeground(71, notification())
-        startListening()
+        startForeground(NOTIFICATION_ID, buildNotification())
+        beginListening(250L)
     }
 
-    private fun startListening() {
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) return
-        recognizer?.destroy()
-        recognizer = SpeechRecognizer.createSpeechRecognizer(this).also { sr ->
-            sr.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(p: Bundle?) { broadcast("READY", "") }
-                override fun onBeginningOfSpeech() { broadcast("LISTENING", "") }
-                override fun onRmsChanged(v: Float) {}
-                override fun onBufferReceived(b: ByteArray?) {}
-                override fun onEndOfSpeech() { broadcast("WAITING", "") }
-                override fun onPartialResults(b: Bundle?) {}
-                override fun onEvent(t: Int, p: Bundle?) {}
-                override fun onError(e: Int) { restart() }
-                override fun onResults(b: Bundle?) {
-                    val heard = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                    val lower = heard.lowercase(Locale.getDefault())
-                    val wake = listOf("jarvis", "jarvises", "harvis", "jarbi", "jarbis").firstOrNull { lower.contains(it) }
-                    if (wake != null) {
-                        val start = lower.indexOf(wake)
-                        val end = if (start >= 0) start + wake.length else 0
-                        val command = if (start >= 0 && end <= heard.length) {
-                            heard.substring(end).trim().trim(',', '.', ':', ';')
-                        } else ""
-                        broadcast("WAKE", command)
-                    }
-                    restart()
+    private fun beginListening(delayMs: Long = 0L) {
+        if (stopping || !SpeechRecognizer.isRecognitionAvailable(this)) {
+            broadcast("ERROR", "")
+            return
+        }
+        handler.postDelayed({
+            if (stopping) return@postDelayed
+            destroyRecognizer()
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(listener)
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale("es", "ES"))
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-ES")
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 8)
+                    putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
                 }
-            })
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-ES")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                listening = true
+                broadcast("READY", "")
+                runCatching { startListening(intent) }
+                    .onFailure { listening = false; scheduleRestart() }
             }
-            runCatching { sr.startListening(intent) }
+        }, delayMs)
+    }
+
+    private val listener = object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) {
+            broadcast("READY", "")
+        }
+
+        override fun onBeginningOfSpeech() {
+            broadcast("LISTENING", "")
+        }
+
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        override fun onPartialResults(partialResults: Bundle?) = Unit
+
+        override fun onEndOfSpeech() {
+            listening = false
+            broadcast("WAITING", "")
+        }
+
+        override fun onError(error: Int) {
+            listening = false
+            if (!stopping) scheduleRestart()
+        }
+
+        override fun onResults(results: Bundle?) {
+            listening = false
+            val heard = results
+                ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                ?.firstOrNull()
+                .orEmpty()
+
+            val command = extractJarvisCommand(heard)
+            if (command != null) {
+                broadcast("WAKE", command)
+            }
+            if (!stopping) scheduleRestart()
         }
     }
 
-    private fun restart() {
-        if (restarting) return
-        restarting = true
-        android.os.Handler(mainLooper).postDelayed({ restarting = false; startListening() }, 650)
+    private fun extractJarvisCommand(text: String): String? {
+        val normalized = text
+            .lowercase(Locale.getDefault())
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        val wakeWords = listOf(
+            "jarvis",
+            "jarvises",
+            "jarbi",
+            "jarbis",
+            "harvis",
+            "jervis",
+            "ok jarvis",
+            "oye jarvis"
+        )
+
+        val matched = wakeWords
+            .sortedByDescending { it.length }
+            .firstOrNull { normalized.contains(it) }
+            ?: return null
+
+        val index = normalized.indexOf(matched)
+        if (index < 0) return ""
+
+        return normalized
+            .substring(index + matched.length)
+            .trim()
+            .trim(',', '.', ':', ';', '-', '¿', '?')
+    }
+
+    private fun scheduleRestart() {
+        handler.removeCallbacksAndMessages(null)
+        if (!stopping) beginListening(RESTART_DELAY_MS)
+    }
+
+    private fun destroyRecognizer() {
+        recognizer?.runCatching { stopListening() }
+        recognizer?.destroy()
+        recognizer = null
+        listening = false
     }
 
     private fun broadcast(type: String, command: String) {
-        sendBroadcast(Intent("com.jarvis.ai.WAKE_EVENT").setPackage(packageName).putExtra("type", type).putExtra("command", command))
+        sendBroadcast(
+            Intent(ACTION_WAKE_EVENT)
+                .setPackage(packageName)
+                .putExtra("type", type)
+                .putExtra("command", command)
+        )
     }
 
     private fun createChannel() {
-        val channel = NotificationChannel("jarvis_wake", "JARVIS", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "JARVIS Voice",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Servicio de voz de JARVIS"
+            setShowBadge(false)
+        }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun notification(): Notification = Notification.Builder(this, "jarvis_wake")
+    private fun buildNotification(): Notification = Notification.Builder(this, CHANNEL_ID)
         .setContentTitle("JARVIS activo")
-        .setContentText("Escuchando la palabra de activación")
+        .setContentText("Di «Jarvis» para activarlo")
         .setSmallIcon(android.R.drawable.ic_btn_speak_now)
         .setOngoing(true)
+        .setCategory(Notification.CATEGORY_SERVICE)
         .build()
 
-    override fun onDestroy() { recognizer?.destroy(); recognizer = null; super.onDestroy() }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        stopping = false
+        if (!listening) beginListening(100L)
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        stopping = true
+        handler.removeCallbacksAndMessages(null)
+        destroyRecognizer()
+        super.onDestroy()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        private const val CHANNEL_ID = "jarvis_voice"
+        private const val NOTIFICATION_ID = 71
+        private const val RESTART_DELAY_MS = 500L
+        const val ACTION_WAKE_EVENT = "com.jarvis.ai.WAKE_EVENT"
+    }
 }
