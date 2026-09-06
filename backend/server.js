@@ -14,7 +14,7 @@ app.get("/", async () => ({
 
 app.get("/health", async () => ({ status: "ok" }));
 
-app.post("/v1/chat", async (request, reply) => {
+async function chatHandler(request, reply) {
   try {
     const key = process.env.OPENAI_API_KEY;
     if (!key) return reply.code(500).send({ error: "OPENAI_API_KEY is not configured" });
@@ -39,6 +39,9 @@ app.post("/v1/chat", async (request, reply) => {
     request.log.error(error);
     return reply.code(500).send({ error: "OpenAI request failed" });
   }
-});
+}
+
+app.post("/v1/chat", chatHandler);
+app.post("/v1/jarvis/chat", chatHandler);
 
 await app.listen({ port, host: "0.0.0.0" });
