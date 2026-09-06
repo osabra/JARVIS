@@ -42,7 +42,10 @@ class JarvisWakeService : Service() {
                     val wake = listOf("jarvis", "jarvises", "harvis", "jarbi", "jarbis").firstOrNull { lower.contains(it) }
                     if (wake != null) {
                         val start = lower.indexOf(wake)
-                        val command = if (start >= 0) heard.substring(start + wake.length).trim().trim(',', '.', ':', ';') else ""
+                        val end = if (start >= 0) start + wake.length else 0
+                        val command = if (start >= 0 && end <= heard.length) {
+                            heard.substring(end).trim().trim(',', '.', ':', ';')
+                        } else ""
                         broadcast("WAKE", command)
                     }
                     restart()
