@@ -57,28 +57,28 @@ fun HolographicCore3D(status: String, pulse: Float, angle: Float, reverseAngle: 
                 drawOval(Cyan.copy(alpha = (0.28f + 0.08f * (4 - abs(lat))) * power), androidx.compose.ui.geometry.Offset(c.x - latRx, c.y - latY), androidx.compose.ui.geometry.Size(latRx * 2f, maxOf(2f, r * 0.13f)), style = Stroke(1f))
             }
             for (lon in 0 until 10) {
-                val phase = Math.toRadians(lon * 36.0 + angle * 1.2)
+                val phase = Math.toRadians(lon * 36.0 + angle.toDouble() * 1.2)
                 val xRadius = r * abs(cos(phase)).toFloat()
                 drawOval(Cyan.copy(alpha = 0.38f * power), androidx.compose.ui.geometry.Offset(c.x - xRadius, c.y - r), androidx.compose.ui.geometry.Size(xRadius * 2f, r * 2f), style = Stroke(if (lon % 2 == 0) 1.2f else 0.7f))
             }
             val pulseRadius = r * (0.34f + wave * 0.12f)
             drawCircle(Brush.radialGradient(listOf(Color.White, Cyan.copy(alpha = 0.95f), CyanDim.copy(alpha = 0.55f), Color.Transparent)), pulseRadius, c)
             for (i in 0 until 18) {
-                val a = Math.toRadians(i * 20.0 + angle * 2.6)
+                val a = Math.toRadians(i * 20.0 + angle.toDouble() * 2.6)
                 val inner = r * 0.48f
-                val outerP = r * (0.9f + 0.12f * sin(Math.toRadians(wave * 360f + i * 27f)).toFloat())
+                val outerP = r * (0.9f + 0.12f * sin(Math.toRadians(wave.toDouble() * 360.0 + i * 27.0)).toFloat())
                 val p1 = androidx.compose.ui.geometry.Offset(c.x + inner * cos(a).toFloat(), c.y + inner * sin(a).toFloat())
                 val p2 = androidx.compose.ui.geometry.Offset(c.x + outerP * cos(a).toFloat(), c.y + outerP * sin(a).toFloat())
                 drawLine(Cyan.copy(alpha = 0.25f + 0.55f * power), p1, p2, if (i % 3 == 0) 2f else 1f)
             }
             for (i in 0 until 30) {
-                val a = Math.toRadians(i * 31.0 + angle * 1.7)
+                val a = Math.toRadians(i * 31.0 + angle.toDouble() * 1.7)
                 val depth = 0.55f + ((i * 17) % 45) / 100f
                 val px = c.x + outer * depth * cos(a).toFloat()
                 val py = c.y + outer * 0.62f * depth * sin(a).toFloat()
                 drawCircle(Cyan.copy(alpha = 0.25f + 0.55f * power), if (i % 7 == 0) 3f else 1.4f, androidx.compose.ui.geometry.Offset(px, py))
             }
-            val scanY = c.y + sin(Math.toRadians(wave * 360.0)).toFloat() * r * 0.85f
+            val scanY = c.y + sin(Math.toRadians(wave.toDouble() * 360.0)).toFloat() * r * 0.85f
             drawLine(Cyan.copy(alpha = 0.22f * power), androidx.compose.ui.geometry.Offset(c.x - outer, scanY), androidx.compose.ui.geometry.Offset(c.x + outer, scanY), 1f)
             drawOval(Cyan.copy(alpha = 0.48f * power), androidx.compose.ui.geometry.Offset(c.x - outer * 0.72f, c.y + r * 0.82f), androidx.compose.ui.geometry.Size(outer * 1.44f, r * 0.22f), style = Stroke(1.2f))
         }
