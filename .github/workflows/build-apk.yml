@@ -33,6 +33,10 @@ jobs:
       - name: Dar permisos a Gradle
         run: chmod +x ./gradlew
 
+      - name: Corregir scope Compose del HUD
+        run: |
+          sed -i 's/private fun HudMetric(/private fun androidx.compose.foundation.layout.RowScope.HudMetric(/' app/src/main/java/com/jarvis/ai/MainActivity.kt
+
       - name: Compilar JARVIS
         run: ./gradlew assembleDebug
 
