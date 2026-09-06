@@ -33,6 +33,9 @@ jobs:
       - name: Aplicar interfaz futurista
         run: python3 tools/apply_futuristic_ui.py
 
+      - name: Aplicar núcleo holográfico 3D
+        run: python3 tools/apply_3d_hologram.py
+
       - name: Dar permisos a Gradle
         run: chmod +x ./gradlew
 
