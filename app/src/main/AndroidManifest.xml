@@ -19,7 +19,7 @@
     </queries>
 
     <application android:theme="@style/Theme.Jarvis" android:label="JARVIS" android:allowBackup="true">
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".JarvisOpenAIActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -31,6 +31,7 @@
                 <data android:scheme="jarvis" android:host="assistant" />
             </intent-filter>
         </activity>
+        <activity android:name=".MainActivity" android:exported="false" />
         <service android:name=".JarvisWakeService" android:exported="false" android:foregroundServiceType="microphone" />
     </application>
 </manifest>
