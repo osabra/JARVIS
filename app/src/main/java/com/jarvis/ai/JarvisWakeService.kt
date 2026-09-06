@@ -41,7 +41,8 @@ class JarvisWakeService : Service() {
                     val lower = heard.lowercase(Locale.getDefault())
                     val wake = listOf("jarvis", "jarvises", "harvis", "jarbi", "jarbis").firstOrNull { lower.contains(it) }
                     if (wake != null) {
-                        val command = heard.substringAfter(wake, "", ignoreCase = true).trim().trim(',', '.', ':', ';')
+                        val start = lower.indexOf(wake)
+                        val command = if (start >= 0) heard.substring(start + wake.length).trim().trim(',', '.', ':', ';') else ""
                         broadcast("WAKE", command)
                     }
                     restart()
