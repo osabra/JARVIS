@@ -30,6 +30,9 @@ jobs:
           sdkmanager "platforms;android-35"
           sdkmanager "build-tools;35.0.0"
 
+      - name: Aplicar interfaz futurista
+        run: python3 tools/apply_futuristic_ui.py
+
       - name: Dar permisos a Gradle
         run: chmod +x ./gradlew
 
