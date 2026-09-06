@@ -1,120 +1,28 @@
 from pathlib import Path
 
-p = Path('app/src/main/java/com/jarvis/ai/MainActivity.kt')
-s = p.read_text()
-start_marker = '        MaterialTheme(colorScheme = darkColorScheme(background = BG, surface = PANEL, primary = CYAN, onPrimary = Color.Black)) {'
-end_marker = '        if (showSettings) {'
-start = s.index(start_marker)
-end = s.index(end_marker, start)
-ui = r'''        MaterialTheme(colorScheme = darkColorScheme(background = BG, surface = PANEL, primary = CYAN, onPrimary = Color.Black)) {
-            val hud = Color(0xFF061018)
-            val cyanGlow = Color(0xFF4DE7FF)
-            val dim = Color(0xFF245665)
-            Column(
-                modifier = Modifier.fillMaxSize().background(BG).padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("J A R V I S", color = WHITE, fontSize = 27.sp, fontWeight = FontWeight.Black, letterSpacing = 6.sp)
-                        Text("NEURAL COMMAND INTERFACE  //  ONLINE", color = cyanGlow, fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
-                    }
-                    Surface(shape = CircleShape, color = hud, border = androidx.compose.foundation.BorderStroke(1.dp, cyanGlow.copy(alpha = .7f))) {
-                        IconButton(onClick = { showSettings = true }) { Icon(Icons.Default.Settings, contentDescription = "Ajustes", tint = cyanGlow) }
-                    }
-                }
-                Spacer(Modifier.height(5.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Surface(shape = RoundedCornerShape(50), color = Color(0xFF061A21), border = androidx.compose.foundation.BorderStroke(1.dp, dim)) {
-                        Text("●  $status", color = cyanGlow, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp))
-                    }
-                    Text(if (wakeMode) "VOICE LINK // ACTIVE" else "VOICE LINK // STANDBY", color = Color(0xFF527D89), fontSize = 7.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
-                }
-                Box(Modifier.size(278.dp).scale(pulse), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.fillMaxSize().rotate(angle)) {
-                        val r = size.minDimension * .47f
-                        val tl = Offset(center.x - r, center.y - r)
-                        val sz = Size(r * 2, r * 2)
-                        drawArc(cyanGlow, 4f, 62f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-                        drawArc(dim, 92f, 38f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f))
-                        drawArc(cyanGlow, 164f, 82f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(3f))
-                        drawArc(dim, 286f, 47f, false, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-                        for (i in 0..35) {
-                            val a = Math.toRadians((i * 10).toDouble())
-                            val inner = if (i % 3 == 0) .87f else .92f
-                            val p1 = Offset(center.x + (r * inner * Math.cos(a)).toFloat(), center.y + (r * inner * Math.sin(a)).toFloat())
-                            val p2 = Offset(center.x + (r * .975f * Math.cos(a)).toFloat(), center.y + (r * .975f * Math.sin(a)).toFloat())
-                            drawLine(cyanGlow.copy(alpha = if (i % 3 == 0) .9f else .22f), p1, p2, if (i % 3 == 0) 2f else 1f, StrokeCap.Round)
-                        }
-                    }
-                    Canvas(Modifier.size(232.dp)) {
-                        val r = size.minDimension * .46f
-                        drawCircle(Color(0xFF071923), r)
-                        drawCircle(cyanGlow.copy(alpha = .7f), r, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5f))
-                        drawCircle(dim, r * .82f, style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
-                        drawCircle(cyanGlow.copy(alpha = .08f), r * .58f)
-                        for (i in 0..15) {
-                            val a = Math.toRadians((i * 22.5).toDouble())
-                            val p1 = Offset(center.x + (r * .72f * Math.cos(a)).toFloat(), center.y + (r * .72f * Math.sin(a)).toFloat())
-                            val p2 = Offset(center.x + (r * .86f * Math.cos(a)).toFloat(), center.y + (r * .86f * Math.sin(a)).toFloat())
-                            drawLine(cyanGlow.copy(alpha = .5f), p1, p2, 1f, StrokeCap.Round)
-                        }
-                    }
-                    Box(Modifier.size(132.dp).shadow(36.dp, CircleShape).background(Color(0xFF031019), CircleShape).border(2.dp, cyanGlow, CircleShape), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (status == "HEARING") "◉" else if (status == "THINKING") "⋮" else "J", color = cyanGlow, fontSize = 52.sp, fontWeight = FontWeight.Black)
-                            Text(if (status == "HEARING") "AUDIO INPUT" else status, color = cyanGlow, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Text("◈ NEURAL", color = dim, fontSize = 7.sp, letterSpacing = 1.sp)
-                    Text("◆ SECURE", color = dim, fontSize = 7.sp, letterSpacing = 1.sp)
-                    Text("◉ VOICE", color = dim, fontSize = 7.sp, letterSpacing = 1.sp)
-                }
-                Spacer(Modifier.height(7.dp))
-                Surface(modifier = Modifier.fillMaxWidth().weight(1f).border(1.dp, Color(0xFF16404D), RoundedCornerShape(20.dp)), shape = RoundedCornerShape(20.dp), color = Color(0xFF040C12)) {
-                    Column(Modifier.fillMaxSize().padding(13.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("LIVE NEURAL FEED", color = cyanGlow, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
-                            Spacer(Modifier.width(8.dp)); Box(Modifier.weight(1f).height(1.dp).background(dim)); Text("// 01", color = dim, fontSize = 7.sp)
-                        }
-                        Spacer(Modifier.height(9.dp))
-                        if (lastPrompt.isNotBlank()) {
-                            Surface(shape = RoundedCornerShape(15.dp, 15.dp, 3.dp, 15.dp), color = Color(0xFF09232E), modifier = Modifier.align(Alignment.End)) {
-                                Text(lastPrompt, color = WHITE, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
-                            }
-                            Spacer(Modifier.height(7.dp))
-                        }
-                        Surface(shape = RoundedCornerShape(3.dp, 15.dp, 15.dp, 15.dp), color = Color(0xFF071720), modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(6.dp).background(cyanGlow, CircleShape)); Spacer(Modifier.width(6.dp)); Text("JARVIS CORE", color = cyanGlow, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp) }
-                                Spacer(Modifier.height(5.dp)); Text(answer, color = WHITE, fontSize = 13.sp, lineHeight = 19.sp)
-                            }
-                        }
-                        Spacer(Modifier.weight(1f)); Text("SYSTEMS  [ AI CORE ]  [ VOICE ]  [ LOCAL ACTIONS ]", color = Color(0xFF315460), fontSize = 6.sp, letterSpacing = 1.sp)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = input, onValueChange = { input = it }, modifier = Modifier.weight(1f).height(55.dp), placeholder = { Text("ENTER COMMAND...", color = Color(0xFF476A76), fontSize = 12.sp, letterSpacing = 1.sp) }, singleLine = true, shape = RoundedCornerShape(16.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = cyanGlow, unfocusedBorderColor = Color(0xFF173A46), focusedTextColor = WHITE, unfocusedTextColor = WHITE, cursorColor = cyanGlow))
-                    Spacer(Modifier.width(6.dp)); FloatingActionButton(onClick = { ask(input) }, modifier = Modifier.size(54.dp), containerColor = cyanGlow, contentColor = Color.Black) { Icon(Icons.Default.Send, contentDescription = "Enviar") }
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button(onClick = { requestMic.launch(Manifest.permission.RECORD_AUDIO) }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF071B24))) {
-                        Icon(Icons.Default.Mic, null, tint = cyanGlow); Spacer(Modifier.width(4.dp)); Text("VOICE INPUT", color = cyanGlow, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    }
-                    Button(onClick = {
-                        if (wakeMode) { context.stopService(Intent(context, JarvisWakeService::class.java)); wakeMode = false; status = "READY" }
-                        else if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        else requestMic.launch(Manifest.permission.RECORD_AUDIO)
-                    }, modifier = Modifier.weight(1f).height(46.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = if (wakeMode) cyanGlow else Color(0xFF071B24))) {
-                        Text(if (wakeMode) "VOICE LINK OFF" else "ACTIVATE JARVIS", color = if (wakeMode) Color.Black else cyanGlow, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    }
-                }
-            }
+p = Path("app/src/main/java/com/jarvis/ai/MainActivity.kt")
+if not p.exists():
+    raise SystemExit(f"MainActivity not found: {p}")
 
-'''
-p.write_text(s[:start] + ui + s[end:])
-print('Futuristic UI applied')
+s = p.read_text(encoding="utf-8")
+
+# The futuristic UI may already be present. In that case this step must be a
+# safe no-op instead of trying to find an obsolete marker and failing.
+if "NEURAL FEED" in s and "HudMetric(" in s and "VOICE LINK" in s:
+    print("Futuristic UI already present; nothing to patch")
+    raise SystemExit(0)
+
+# For older versions, locate the composable UI by stable structural markers.
+start_marker = "    MaterialTheme(colorScheme = darkColorScheme"
+end_marker = "\n        if (showSettings) {"
+
+start = s.find(start_marker)
+end = s.find(end_marker, start if start >= 0 else 0)
+
+if start < 0 or end < 0:
+    raise SystemExit("Could not locate JarvisApp UI markers; refusing to modify the file")
+
+# Keep the source intact for versions that predate the current UI. The current
+# repository already contains the futuristic implementation, so reaching this
+# branch indicates an unexpected source version and should fail clearly.
+raise SystemExit("Unsupported MainActivity UI version: futuristic UI markers are missing")
