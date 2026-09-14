@@ -1,6 +1,12 @@
 # JARVIS 🤖
 
-Asistente de IA para Android con interfaz futurista tipo JARVIS y módulo **Video AI (imagen → vídeo)**.
+Asistente de IA para Android con módulo **Video AI (imagen → vídeo)**.
+
+## Video AI gratuito
+
+JARVIS usa un backend público basado en **Wan 2.2** para animar una imagen con un prompt. La arquitectura de NiftyVid usa un Worker como proxy hacia un Hugging Face Space con Wan 2.2, evitando que la app tenga que incluir una API de pago. El servicio público puede tener colas, límites o cambiar de disponibilidad. citeturn1search2
+
+La versión gratuita está pensada para clips cortos. Un Space público de Wan 2.2 documenta Image-to-Video y límites de duración para mantenerse dentro del tiempo de GPU disponible. citeturn1search0turn1search10
 
 ## Características
 
@@ -9,31 +15,25 @@ Asistente de IA para Android con interfaz futurista tipo JARVIS y módulo **Vide
 - 🔊 Texto a voz
 - 🌑 Interfaz oscura futurista
 - 📱 Android
-- 🖼️ Selección de imagen para Image-to-Video
+- 🖼️ Selección de imagen
 - ✍️ Prompt de movimiento
-- ⏱️ Duraciones 5 / 10 / 15 s
-- 🔌 Configuración de endpoint y API key para proveedor de vídeo
+- 🎬 Image-to-Video con Wan 2.2
+- 💰 Sin Runway y sin API de pago en el modo gratuito
 
-## Generación real
-
-La generación de vídeo depende de un proveedor de IA y su API. La app no simula una generación. El adaptador concreto debe implementar subida de imagen, creación del trabajo, consulta de estado y descarga del MP4.
-
-## Abrir en Android Studio
+## Desarrollo
 
 1. Clona este repositorio.
-2. Abre la carpeta del proyecto en Android Studio.
-3. Espera a que Gradle sincronice.
-4. Ejecuta en un móvil/emulador.
-5. Para crear la APK: `Build > Generate App Bundle / APK > Generate APK`.
+2. Ábrelo en Android Studio.
+3. Sincroniza Gradle.
+4. Ejecuta la app.
+5. Genera una APK desde **Build > Generate App Bundle / APK > Generate APK**.
+
+La pantalla de vídeo tiene un backend configurable y, por defecto, apunta al proxy público de NiftyVid. Si ese servicio deja de estar disponible, puedes cambiar el endpoint por otro backend compatible.
 
 ## Seguridad
 
-No guardes claves privadas de IA dentro de la APK ni las subas a GitHub. En producción se recomienda un backend HTTPS que gestione las credenciales como secretos.
+No guardes claves privadas de IA dentro de la APK ni las subas a GitHub.
 
-## GitHub Actions
+## Nota sobre el modelo
 
-El workflow de compilación se encuentra en `.github/workflows/build-apk.yml` y puede generar una APK como artefacto tras un push.
-
-## Gradle Wrapper
-
-El proyecto incluye `gradlew`, `gradlew.bat` y `gradle/wrapper/gradle-wrapper.properties`.
+Wan 2.2 es un modelo abierto de generación de vídeo y soporta Image-to-Video; el modelo oficial documenta generación a 24 FPS en sus configuraciones compatibles. citeturn0search3
