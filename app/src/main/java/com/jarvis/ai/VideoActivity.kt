@@ -23,9 +23,7 @@ import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
-import java.util.regex.Pattern
 
-// No Cloudflare Worker is required. Android can call the public Gradio Space directly.
 private const val DEFAULT_BACKEND = "https://cbensimon-wan2-2-fp8da-aoti-preview2.hf.space"
 private const val FN_NAME = "generate_video"
 
@@ -57,7 +55,7 @@ private fun VideoScreen() {
                 Text(if (image == null) "🖼️ Seleccionar imagen" else "✓ Imagen seleccionada")
             }
             OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text("Movimiento / escena") }, modifier = Modifier.fillMaxWidth(), minLines = 5)
-            Text("Duración (Wan gratuito: aproximadamente 5 s por generación)")
+            Text("Duración (el servidor gratuito genera clips cortos)")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(5, 10, 15).forEach { d -> FilterChip(selected = duration == d, onClick = { duration = d }, label = { Text("${d}s") }) }
             }
@@ -89,8 +87,6 @@ private fun VideoScreen() {
 }
 
 private suspend fun generateVideo(context: Context, backend: String, image: Uri, prompt: String, duration: Int): String = withContext(Dispatchers.IO) {
-    // The public free Space currently exposes the Gradio API used by NiftyVid.
-    // Native Android is not subject to browser CORS, so no Cloudflare proxy is needed.
     val imagePath = uploadImage(context, backend, image)
     val eventId = submitJob(backend, imagePath, image.lastPathSegment ?: "input.jpg", prompt, duration)
     readResultStream(backend, eventId)
@@ -116,7 +112,7 @@ private fun uploadImage(context: Context, backend: String, image: Uri): String {
 
 private fun submitJob(backend: String, imagePath: String, originalName: String, prompt: String, duration: Int): String {
     val inputImage = "{\"path\":${jsonQuote(imagePath)},\"url\":${jsonQuote(\"$backend/gradio_api/file=$imagePath\")},\"orig_name\":${jsonQuote(originalName)},\"size\":null,\"mime_type\":\"image/jpeg\",\"meta\":{\"_type\":\"gradio.FileData\"}}"
-    val seconds = if (duration <= 5) 5.0 else 5.0
+    val seconds = 5.0
     val negative = "色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画面, 静止, 整体发灰, 最差质量, 低质量, JPEG压缩残留, 丑陋的, 残缺的, 多余的手指, 画得不好的手部, 画得不好的脸部, 畸形的, 静止不动的画面, 杂乱的背景, 三条腿, 背景人很多, 倒着走"
     val data = "[{image},null,{prompt},6,{negative},$seconds,1,1,42,true,6,\"UniPCMultistep\",3.0,16,false,true]"
         .replace("{image}", inputImage)
@@ -143,32 +139,30 @@ private fun readResultStream(backend: String, eventId: String): String {
     }
     val code = conn.responseCode
     if (code !in 200..299) {
-        val error = (conn.errorStream ?: conn.inputStream).bufferedReader().readText()
-        conn.disconnect(); error("Resultado HTTP $code: ${error.takeLast(1000)}")
+        val errorBody = (conn.errorStream ?: conn.inputStream).bufferedReader().readText()
+        conn.disconnect(); error("Resultado HTTP $code: ${errorBody.takeLast(1000)}")
     }
+    val streamBody = conn.inputStream.bufferedReader().readText()
+    conn.disconnect()
+    val lines = streamBody.split("\\n")
     var event = ""
     var data = ""
-    conn.inputStream.bufferedReader().useLines { lines ->
-        for (line in lines) {
-            when {
-                line.startsWith("event:") -> event = line.substringAfter(':').trim()
-                line.startsWith("data:") -> data += line.substringAfter(':').trim()
-                line.isBlank() -> {
-                    if (event == "complete" || event == "error") {
-                        if (event == "error") error("Wan devolvió un error: $data")
-                        val url = extractVideoUrl(data, backend)
-                        if (url != null) return@useLines
-                    }
-                    event = ""; data = ""
+    for (lineRaw in lines) {
+        val line = lineRaw.trimEnd('\\r')
+        when {
+            line.startsWith("event:") -> event = line.substringAfter(':').trim()
+            line.startsWith("data:") -> data += line.substringAfter(':').trim()
+            line.isBlank() -> {
+                if (event == "error") error("Wan devolvió un error: $data")
+                if (event == "complete") {
+                    extractVideoUrl(data, backend)?.let { return it }
                 }
+                event = ""; data = ""
             }
-            val direct = extractVideoUrl(data, backend)
-            if (event == "complete" && direct != null) { data = direct; break }
         }
     }
-    conn.disconnect()
-    val url = extractVideoUrl(data, backend) ?: error("Wan terminó sin devolver un vídeo.")
-    return url
+    extractVideoUrl(streamBody, backend)?.let { return it }
+    error("Wan terminó sin devolver un vídeo.")
 }
 
 private fun extractVideoUrl(text: String, backend: String): String? {
