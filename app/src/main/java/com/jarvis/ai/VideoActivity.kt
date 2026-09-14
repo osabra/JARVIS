@@ -1,10 +1,8 @@
 package com.jarvis.ai
 
-import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.view.ViewGroup
 import android.widget.MediaController
 import android.widget.VideoView
@@ -19,14 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.io.BufferedInputStream
 import java.io.DataOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+import java.util.regex.Pattern
+
+private const val DEFAULT_BACKEND = "https://nifty-vid.workers.dev"
 
 class VideoActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,32 +38,29 @@ class VideoActivity : ComponentActivity() {
 private fun VideoScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var backend by remember { mutableStateOf(context.getSharedPreferences("jarvis_openai", 0).getString("video_backend", "") ?: "") }
+    var backend by remember { mutableStateOf(context.getSharedPreferences("jarvis_video", 0).getString("backend", DEFAULT_BACKEND) ?: DEFAULT_BACKEND) }
     var image by remember { mutableStateOf<Uri?>(null) }
     var prompt by remember { mutableStateOf("Cinematic live-action battle. The characters move continuously and naturally, run, dodge attacks and react to each other. Dynamic tracking camera, realistic physics, dust, sparks, dramatic lighting, detailed CGI, no static poses.") }
-    var duration by remember { mutableStateOf(5) }
-    var status by remember { mutableStateOf("LISTO") }
+    var status by remember { mutableStateOf("LISTO · GRATIS") }
     var videoUrl by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { image = it }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("JARVIS VIDEO AI", style = MaterialTheme.typography.headlineMedium)
-            OutlinedTextField(backend, { backend = it }, label = { Text("URL del backend") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Button({ picker.launch("image/*") }, Modifier.fillMaxWidth()) { Text(if (image == null) "Seleccionar imagen" else "✓ Imagen seleccionada") }
+            Text("Wan 2.2 · Image → Video · gratuito", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(backend, { backend = it }, label = { Text("Backend gratuito") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Button({ picker.launch("image/*") }, Modifier.fillMaxWidth()) { Text(if (image == null) "🖼️ Seleccionar imagen" else "✓ Imagen seleccionada") }
             OutlinedTextField(prompt, { prompt = it }, label = { Text("Movimiento / escena") }, modifier = Modifier.fillMaxWidth(), minLines = 5)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(duration == 5, { duration = 5 }, label = { Text("5 s") })
-                FilterChip(duration == 10, { duration = 10 }, label = { Text("10 s") })
-            }
+            Text("La versión gratuita pública está limitada a clips cortos (aprox. hasta 5 s).")
             Button(
-                enabled = image != null && backend.isNotBlank() && status != "GENERANDO",
+                enabled = image != null && status != "GENERANDO…",
                 onClick = {
-                    context.getSharedPreferences("jarvis_openai", 0).edit().putString("video_backend", backend.trim().removeSuffix("/")).apply()
-                    status = "GENERANDO"
+                    context.getSharedPreferences("jarvis_video", 0).edit().putString("backend", backend.trim().removeSuffix("/")).apply()
+                    status = "GENERANDO…"
                     videoUrl = null
                     scope.launch {
-                        runCatching { generateVideo(context, backend.trim().removeSuffix("/"), image!!, prompt, duration) }
+                        runCatching { generateVideo(context, backend.trim().removeSuffix("/"), image!!, prompt) }
                             .onSuccess { videoUrl = it; status = "COMPLETADO" }
                             .onFailure { status = "ERROR: ${it.message ?: "fallo desconocido"}" }
                     }
@@ -82,46 +78,49 @@ private fun VideoScreen() {
     }
 }
 
-private suspend fun generateVideo(context: Context, backend: String, image: Uri, prompt: String, duration: Int): String = withContext(Dispatchers.IO) {
+private suspend fun generateVideo(context: Context, backend: String, image: Uri, prompt: String): String = withContext(Dispatchers.IO) {
     val boundary = "----JarvisBoundary${System.currentTimeMillis()}"
-    val conn = (URL("$backend/v1/image-to-video").openConnection() as HttpURLConnection).apply {
+    val conn = (URL("$backend/generate").openConnection() as HttpURLConnection).apply {
         requestMethod = "POST"
         doOutput = true
         connectTimeout = 30000
-        readTimeout = 120000
+        readTimeout = 10 * 60 * 1000
         setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+        setRequestProperty("Accept", "text/event-stream")
     }
     DataOutputStream(conn.outputStream).use { out ->
-        writeField(out, boundary, "prompt", prompt)
-        writeField(out, boundary, "duration", duration.toString())
-        out.writeBytes("--$boundary\r\nContent-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n")
-        context.contentResolver.openInputStream(image)?.use { it.copyTo(out) } ?: error("No se pudo leer la imagen")
-        out.writeBytes("\r\n--$boundary--\r\n")
+        writeFile(out, boundary, "image", "image.jpg", "image/jpeg", context.contentResolver.openInputStream(image)?.use { it.readBytes() } ?: error("No se pudo leer la imagen"))
+        val params = "{\"prompt\":${jsonQuote(prompt)},\"duration_seconds\":5,\"steps\":6}"
+        writeField(out, boundary, "params", params)
+        out.writeBytes("--$boundary--\r\n")
     }
     val code = conn.responseCode
-    val body = (if (code in 200..299) conn.inputStream else conn.errorStream).bufferedReader().readText()
-    if (code !in 200..299) error(JSONObject(body).optString("error", "Servidor HTTP $code"))
-    val taskId = JSONObject(body).getString("taskId")
-    conn.disconnect()
-
-    repeat(120) {
-        delay(3000)
-        val poll = (URL("$backend/v1/tasks/$taskId").openConnection() as HttpURLConnection).apply { requestMethod = "GET" }
-        val pollCode = poll.responseCode
-        val text = (if (pollCode in 200..299) poll.inputStream else poll.errorStream).bufferedReader().readText()
-        poll.disconnect()
-        if (pollCode !in 200..299) error("No se pudo consultar la tarea")
-        val json = JSONObject(text)
-        val status = json.optString("status")
-        if (status.equals("SUCCEEDED", true)) {
-            val output = json.optJSONArray("output") ?: error("Runway no devolvió vídeo")
-            return@withContext output.getString(0)
-        }
-        if (status.equals("FAILED", true) || status.equals("CANCELLED", true)) error("Runway terminó con estado $status")
+    if (code !in 200..299) {
+        val err = (conn.errorStream ?: conn.inputStream).bufferedReader().readText()
+        error("Servidor HTTP $code: $err")
     }
-    error("Tiempo de espera agotado")
+    val video = extractVideoUrl(conn.inputStream.bufferedReader().readText())
+    conn.disconnect()
+    video
 }
+
+private fun extractVideoUrl(sse: String): String {
+    val candidates = mutableListOf<String>()
+    val urlPattern = Pattern.compile("https?://[^\\\"\\s]+(?:\\.mp4|/file=|/gradio_api/file=)[^\\\"\\s]*")
+    val m = urlPattern.matcher(sse)
+    while (m.find()) candidates.add(m.group())
+    if (candidates.isNotEmpty()) return candidates.last().replace("\\u0026", "&")
+    error("Wan terminó sin devolver una URL de vídeo. Respuesta: ${sse.takeLast(1200)}")
+}
+
+private fun jsonQuote(value: String): String = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r") + "\""
 
 private fun writeField(out: DataOutputStream, boundary: String, name: String, value: String) {
     out.writeBytes("--$boundary\r\nContent-Disposition: form-data; name=\"$name\"\r\n\r\n$value\r\n")
+}
+
+private fun writeFile(out: DataOutputStream, boundary: String, field: String, filename: String, mime: String, bytes: ByteArray) {
+    out.writeBytes("--$boundary\r\nContent-Disposition: form-data; name=\"$field\"; filename=\"$filename\"\r\nContent-Type: $mime\r\n\r\n")
+    out.write(bytes)
+    out.writeBytes("\r\n")
 }
