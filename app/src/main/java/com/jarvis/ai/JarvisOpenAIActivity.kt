@@ -83,11 +83,7 @@ private fun JarvisOpenAIApp() {
     fun ask(text: String) {
         val prompt = text.trim()
         if (prompt.isBlank() || state == "THINKING") return
-        if (backend.isBlank()) {
-            settings = true
-            state = "CONFIG"
-            return
-        }
+        if (backend.isBlank()) { settings = true; state = "CONFIG"; return }
         val local = JarvisActions.execute(context, prompt)
         if (local != null) {
             lines.add(JarvisLine("user", prompt)); lines.add(JarvisLine("assistant", local)); speak(local); state = "READY"; input = ""; return
@@ -135,9 +131,7 @@ private fun JarvisOpenAIApp() {
                 Canvas(Modifier.size(220.dp).scale(pulse).rotate(angle)) {
                     drawArc(CYAN, 15f, 80f, false, androidx.compose.ui.geometry.Offset(5f, 5f), androidx.compose.ui.geometry.Size(size.width - 10f, size.height - 10f), style = Stroke(2f))
                     drawArc(CYAN_DARK, 190f, 60f, false, androidx.compose.ui.geometry.Offset(15f, 15f), androidx.compose.ui.geometry.Size(size.width - 30f, size.height - 30f), style = Stroke(3f))
-                    for (i in 0..11) {
-                        val a = Math.toRadians((i * 30).toDouble()); val x1 = center.x + (size.minDimension * .40f * Math.cos(a)).toFloat(); val y1 = center.y + (size.minDimension * .40f * Math.sin(a)).toFloat(); val x2 = center.x + (size.minDimension * .47f * Math.cos(a)).toFloat(); val y2 = center.y + (size.minDimension * .47f * Math.sin(a)).toFloat(); drawLine(CYAN, androidx.compose.ui.geometry.Offset(x1,y1), androidx.compose.ui.geometry.Offset(x2,y2), 2f, StrokeCap.Round)
-                    }
+                    for (i in 0..11) { val a = Math.toRadians((i * 30).toDouble()); val x1 = center.x + (size.minDimension * .40f * Math.cos(a)).toFloat(); val y1 = center.y + (size.minDimension * .40f * Math.sin(a)).toFloat(); val x2 = center.x + (size.minDimension * .47f * Math.cos(a)).toFloat(); val y2 = center.y + (size.minDimension * .47f * Math.sin(a)).toFloat(); drawLine(CYAN, androidx.compose.ui.geometry.Offset(x1,y1), androidx.compose.ui.geometry.Offset(x2,y2), 2f, StrokeCap.Round) }
                 }
                 Surface(Modifier.size(125.dp), shape = CircleShape, color = Color(0xFF04141E), border = androidx.compose.foundation.BorderStroke(2.dp, CYAN)) {
                     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text(if (state == "THINKING") "…" else "J", color = CYAN, fontSize = 56.sp, fontWeight = FontWeight.Bold); Text(state, color = CYAN, fontSize = 8.sp, letterSpacing = 2.sp) }
@@ -155,7 +149,7 @@ private fun JarvisOpenAIApp() {
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { mic.launch(Manifest.permission.RECORD_AUDIO) }, Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A1B24))) { Icon(Icons.Default.Mic, null, tint = CYAN); Spacer(Modifier.width(5.dp)); Text("HABLAR", color = CYAN) }
-                Button(onClick = { if (wakeEnabled) { context.stopService(Intent(context, JarvisWakeService::class.java)); wakeEnabled = false; state = "ONLINE" } else mic.launch(Manifest.permission.RECORD_AUDIO) }, Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if (wakeEnabled) CYAN else Color(0xFF0A1B24))) { Text(if (wakeEnabled) "PARAR" else "DECIR JARVIS", color = if (wakeEnabled) Color.Black else CYAN) }
+                Button(onClick = { context.startActivity(Intent(context, VideoActivity::class.java)) }, Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = CYAN)) { Text("🎬 VIDEO AI", color = Color.Black) }
             }
         }
         if (settings) JarvisSettingsDialog(backend, { settings = false }) { value -> backend = value.trim().removeSuffix("/"); context.getSharedPreferences(PREFS, 0).edit().putString(BACKEND, backend).apply(); settings = false }
